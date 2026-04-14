@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webserv - Session Test</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Session &amp; Cookie Test</h1>
+        <p>This page demonstrates session management via cookies.</p>
+
+        <div id="session-display" class="session-box no-session">
+            <strong>Session ID:</strong>
+            <span id="session-id">Checking...</span>
+        </div>
+
+        <div>
+            <button class="btn-check" onclick="checkSession()">🔍 Check Session</button>
+            <button class="btn-new" onclick="newSession()">🆕 Get New Session</button>
+            <button class="btn-clear" onclick="clearSession()">🗑️ Clear Cookie</button>
+        </div>
+
+        <h2>How it works</h2>
+        <ul>
+            <li><strong>First visit:</strong> Server sends <code>Set-Cookie: session_id=...</code></li>
+            <li><strong>Return visit:</strong> Browser sends <code>Cookie: session_id=...</code>, server recognizes it</li>
+            <li><strong>Clear &amp; revisit:</strong> No cookie sent, server creates a new session</li>
+        </ul>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        function getSessionCookie() {
+            const cookies = document.cookie.split(';');
+            for (let c of cookies) {
+                c = c.trim();
+                if (c.startsWith('session_id='))
+                    return c.substring(11);
+            }
+            return null;
+        }
+
+        function updateDisplay() {
+            const sid = getSessionCookie();
+            const display = document.getElementById('session-display');
+            const span = document.getElementById('session-id');
+            if (sid) {
+                span.textContent = sid;
+                span.className = 'session-id';
+                display.className = 'session-box';
+            } else {
+                span.textContent = 'No session cookie found';
+                span.className = '';
+                display.className = 'session-box no-session';
+            }
+        }
+
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            const now = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = '<span class="time">[' + now + ']</span> ' + msg;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function checkSession() {
+            const sidBefore = getSessionCookie();
+            if (sidBefore) {
+                log('Current session_id: <b>' + sidBefore + '</b>');
+            } else {
+                log('No session_id cookie found in browser.');
+            }
+
+            fetch('/', { credentials: 'same-origin' }).then(function() {
+                const sidAfter = getSessionCookie();
+                if (!sidBefore && sidAfter) {
+                    log('Server assigned new session: <b>' + sidAfter + '</b>');
+                } else if (sidBefore && sidAfter && sidBefore === sidAfter) {
+                    log('Server recognized existing session (no new cookie).');
+                } else if (sidBefore && sidAfter && sidBefore !== sidAfter) {
+                    log('Server replaced session: <b>' + sidAfter + '</b>');
+                }
+                updateDisplay();
+            });
+        }
+
+        function clearSession() {
+            document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            log('Cleared session_id cookie from browser.');
+            updateDisplay();
+        }
+
+        function newSession() {
+            clearSession();
+            log('Requesting page without cookie to get a new session...');
+            fetch('/', { credentials: 'same-origin' }).then(function() {
+                const newSid = getSessionCookie();
+                if (newSid) {
+                    log('New session_id received: <b>' + newSid + '</b>');
+                } else {
+                    log('No new session received (unexpected).');
+                }
+                updateDisplay();
+            });
+        }
+
+        updateDisplay();
+        log('Page loaded. Session cookie: <b>' + (getSessionCookie() || 'none') + '</b>');
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+[[servers]]
+listen = 8080
+server_name = "localhost"
+client_max_body_size = "1M"
+client_timeout = 60
+session_timeout = 200
+
+[servers.error_pages]
+404 = "/www/error/404.html"
+500 = "/www/error/500.html"
+
+    [servers.locations."/"]
+    root = "www"
+    index = "index.html"
+    methods = ["GET", "POST", "DELETE"]
+    autoindex = true
+
+    [servers.locations."/uploads"]
+    root = "www/uploads"
+    methods = ["GET", "POST", "DELETE"]
+    upload_dir = "www/uploads"
+    autoindex = true
+
+    [servers.locations."/cgi-bin/python"]
+    root = "cgi-bin/python"
+    methods = ["GET", "POST"]
+    cgi_extension = ".py"
+    cgi_path = "/usr/bin/python3"

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebServ Upload Test</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 WebServ Upload Test</h1>
+        <p class="subtitle">Test file uploads with your web server</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text"><strong>Click to select files</strong> or drag and drop here</p>
+            <p style="color: #999; font-size: 0.9em;">Support for multiple files</p>
+        </div>
+
+        <input type="file" id="fileInput" class="file-input" multiple>
+
+        <div id="selectedFiles" class="selected-files"></div>
+
+        <div style="text-align: center;">
+            <button class="btn" id="uploadBtn" disabled>Upload Files</button>
+            <button class="btn" id="clearBtn" style="background: #6c757d;">Clear All</button>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill">0%</div>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div class="test-buttons">
+            <h3 style="color: #333; margin-bottom: 15px;">Quick Test Files</h3>
+
+            <div class="test-section">
+                <div class="test-title">Small Files (< 1MB):</div>
+                <button class="btn" onclick="createTestFile(1024, 'test_1kb.txt')">1 KB</button>
+                <button class="btn" onclick="createTestFile(10240, 'test_10kb.txt')">10 KB</button>
+                <button class="btn" onclick="createTestFile(102400, 'test_100kb.txt')">100 KB</button>
+            </div>
+
+            <div class="test-section">
+                <div class="test-title">Medium Files (1-10MB):</div>
+                <button class="btn" onclick="createTestFile(1048576, 'test_1mb.bin')">1 MB</button>
+                <button class="btn" onclick="createTestFile(5242880, 'test_5mb.bin')">5 MB</button>
+            </div>
+
+            <div class="test-section">
+                <div class="test-title">Large Files (> 10MB):</div>
+                <button class="btn" onclick="createTestFile(10485760, 'test_10mb.bin')">10 MB</button>
+                <button class="btn" onclick="createTestFile(52428800, 'test_50mb.bin')">50 MB</button>
+            </div>
+
+            <div class="test-section">
+                <div class="test-title">Special Cases:</div>
+                <button class="btn" onclick="createTestFile(0, 'empty.txt')">Empty File</button>
+                <button class="btn" onclick="createTestFile(1024, 'special (name) [test] & more.txt')">Special Chars</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFilesDiv = document.getElementById('selectedFiles');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Click to select files
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            selectedFiles = [...selectedFiles, ...Array.from(files)];
+            updateFileList();
+            uploadBtn.disabled = selectedFiles.length === 0;
+        }
+
+        function updateFileList() {
+            selectedFilesDiv.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile(${index})">Remove</button>
+                `;
+                selectedFilesDiv.appendChild(fileItem);
+            });
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            uploadBtn.disabled = selectedFiles.length === 0;
+        }
+
+        clearBtn.addEventListener('click', () => {
+            selectedFiles = [];
+            updateFileList();
+            uploadBtn.disabled = true;
+            fileInput.value = '';
+            hideStatus();
+        });
+
+        uploadBtn.addEventListener('click', uploadFiles);
+
+        async function uploadFiles() {
+            if (selectedFiles.length === 0) return;
+
+            uploadBtn.disabled = true;
+            progressBar.style.display = 'block';
+            hideStatus();
+
+            let uploaded = 0;
+            const total = selectedFiles.length;
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/uploads', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        uploaded++;
+                    }
+
+                    updateProgress(uploaded, total);
+                } catch (error) {
+                    console.error('Upload error:', error);
+                }
+            }
+
+            setTimeout(() => {
+                progressBar.style.display = 'none';
+
+                if (uploaded === total) {
+                    showStatus(`Successfully uploaded ${uploaded} file(s)!`, 'success');
+                    selectedFiles = [];
+                    updateFileList();
+                    fileInput.value = '';
+                } else {
+                    showStatus(`Uploaded ${uploaded} of ${total} files. Some uploads failed.`, 'error');
+                }
+
+                uploadBtn.disabled = selectedFiles.length === 0;
+            }, 500);
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = percent + '%';
+        }
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message ${type}`;
+            statusMessage.style.display = 'block';
+        }
+
+        function hideStatus() {
+            statusMessage.style.display = 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function createTestFile(size, filename) {
+            const blob = new Blob([new ArrayBuffer(size)], { type: 'application/octet-stream' });
+            const file = new File([blob], filename, { type: 'application/octet-stream' });
+            selectedFiles.push(file);
+            updateFileList();
+            uploadBtn.disabled = false;
+            showStatus(`Created test file: ${filename} (${formatFileSize(size)})`, 'success');
+        }
+    </script>
+</body>
+</html>

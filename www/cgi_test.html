@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebServ CGI Test</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ CGI Test</h1>
+        <p class="subtitle">Test CGI scripts with GET and POST requests</p>
+
+        <!-- Python GET -->
+        <div class="test-section">
+            <h2>1. Python CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/python/test.py" method="GET" target="result-get">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" value="Alice">
+                <label for="age">Age</label>
+                <input type="text" id="age" name="age" value="25">
+                <button class="btn" type="submit">Send GET →</button>
+            </form>
+            <iframe class="result-frame" name="result-get"></iframe>
+        </div>
+
+        <!-- Python POST -->
+        <div class="test-section">
+            <h2>2. Python CGI — POST</h2>
+            <form class="form-area" action="/cgi-bin/python/test.py" method="POST" target="result-post">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" value="testuser">
+                <label for="password">Password</label>
+                <input type="text" id="password" name="password" value="secret123">
+                <button class="btn" type="submit">Send POST →</button>
+            </form>
+            <iframe class="result-frame" name="result-post"></iframe>
+        </div>
+
+        <!-- PHP GET -->
+        <div class="test-section">
+            <h2>3. PHP CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/php/test.php" method="GET" target="result-php">
+                <label for="php-name">Name</label>
+                <input type="text" id="php-name" name="name" value="Bob">
+                <label for="php-city">City</label>
+                <input type="text" id="php-city" name="city" value="Paris">
+                <button class="btn" type="submit">Send GET →</button>
+            </form>
+            <iframe class="result-frame" name="result-php"></iframe>
+        </div>
+
+        <!-- Shell GET -->
+        <div class="test-section">
+            <h2>4. Shell CGI — GET</h2>
+            <form class="form-area" action="/cgi-bin/shell/test.sh" method="GET" target="result-sh">
+                <button class="btn" type="submit">Run Shell Script →</button>
+            </form>
+            <iframe class="result-frame" name="result-sh"></iframe>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <h2>Quick Links</h2>
+            <div class="link-item">
+                <a href="/cgi-bin/python/test.py" target="_blank">Python CGI (no params)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/python/test.py?name=Alice&amp;age=25" target="_blank">Python CGI (query string)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/php/test.php?name=Bob&amp;city=Paris" target="_blank">PHP CGI (query string)</a>
+                <span class="link-label">GET</span>
+            </div>
+            <div class="link-item">
+                <a href="/cgi-bin/shell/test.sh" target="_blank">Shell CGI</a>
+                <span class="link-label">GET</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
