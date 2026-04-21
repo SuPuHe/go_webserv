@@ -7,6 +7,8 @@ import (
 	"sync"
 	"strings"
 	"strconv"
+	"path/filepath"
+	"os"
 )
 
 type WebHandler struct {
@@ -69,20 +71,68 @@ func (h *WebHandler) handleCGI(w http.ResponseWriter, r *http.Request, loc Locat
 	fmt.Fprintf(w, "CGI handler for %s is not implemented yet\n", loc.CGIPath)
 }
 
+func (h *WebHandler) generateAutoindex(w http.ResponseWriter, r *http.Request, directory string) {
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		h.sendError(w, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, "<html><body><h1>Index of %s</h1><hr><ul>", r.URL.Path)
+
+	fmt.Fprintf(w, "<li><a href=\"..\">..</a></li>")
+
+	for _, file := range files {
+		name := file.Name()
+		if file.IsDir() {
+			name += "/"
+		}
+		fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>", name, name)
+	}
+
+	fmt.Fprintf(w, "</ul><hr></body></html>")
+}
+
+func (h *WebHandler) sendError(w http.ResponseWriter, code int) {
+	if path, ok := h.Config.ErrorPages[strconv.Itoa(code)]; ok {
+		content, err := os.ReadFile(path)
+		if err == nil {
+			w.WriteHeader(code)
+			w.Write(content)
+			return
+		}
+	}
+	http.Error(w, http.StatusText(code), code)
+}
+
 func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	location, found := h.findLocation(r.URL.Path)
+	matchedPrefix := ""
+	var location LocationConfig
+	found := false
+
+	for prefix, loc := range h.Config.Locations {
+		if strings.HasPrefix(r.URL.Path, prefix) {
+			if len(prefix) > len(matchedPrefix) {
+				matchedPrefix = prefix
+				location = loc
+				found = true
+			}
+		}
+	}
+
 	if !found {
-		http.Error(w, "Not Found", http.StatusNotFound)
+		h.sendError(w, http.StatusNotFound)
 		return
 	}
 
 	if !h.isMethodAllowed(r.Method, location) {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		h.sendError(w, http.StatusMethodNotAllowed)
 		return
 	}
 
 	if r.ContentLength > h.parseMaxBody(h.Config.ClientMaxBodySize) {
-		http.Error(w, "Payload Too Large", http.StatusRequestEntityTooLarge)
+		h.sendError(w, http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -91,7 +141,35 @@ func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.ServeFile(w, r, location.Root + r.URL.Path)
+	trimmedPath := strings.TrimPrefix(r.URL.Path, matchedPrefix)
+	trimmedPath = strings.TrimPrefix(trimmedPath, "/")
+	fullPath := filepath.Join(location.Root, trimmedPath)
+
+	stat, err := os.Stat(fullPath)
+	if err != nil {
+		h.sendError(w, http.StatusNotFound)
+		return
+	}
+
+	if stat.IsDir() {
+		indexName := "index.html"
+		indexPath := filepath.Join(fullPath, indexName)
+
+		if _, err := os.Stat(indexPath); err == nil {
+			http.ServeFile(w, r, indexPath)
+			return
+		}
+
+		if location.Autoindex {
+			h.generateAutoindex(w, r, fullPath)
+			return
+		}
+
+		h.sendError(w, http.StatusForbidden)
+		return
+	}
+
+	http.ServeFile(w, r, fullPath)
 }
 
 func main() {

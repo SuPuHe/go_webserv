@@ -6,8 +6,8 @@ client_timeout = 60
 session_timeout = 200
 
 [servers.error_pages]
-404 = "/www/error/404.html"
-500 = "/www/error/500.html"
+404 = "www/error/404.html"
+500 = "www/error/500.html"
 
     [servers.locations."/"]
     root = "www"
