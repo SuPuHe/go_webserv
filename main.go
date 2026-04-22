@@ -9,13 +9,14 @@ import (
 	"strconv"
 	"path/filepath"
 	"os"
+	"io"
 )
 
 type WebHandler struct {
 	Config ServerConfig
 }
 
-func (h *WebHandler) findLocation(path string) (LocationConfig, bool) {
+func (h *WebHandler) findLocation(path string) (LocationConfig, string, bool) {
 	var bestMatch string
 	var result LocationConfig
 	found := false
@@ -29,8 +30,9 @@ func (h *WebHandler) findLocation(path string) (LocationConfig, bool) {
 			}
 		}
 	}
-	return result, found
+	return result, bestMatch, found
 }
+
 func (h *WebHandler) isMethodAllowed(method string, loc LocationConfig) bool {
 	if len(loc.Methods) == 0 {
 		return true
@@ -88,7 +90,9 @@ func (h *WebHandler) generateAutoindex(w http.ResponseWriter, r *http.Request, d
 		if file.IsDir() {
 			name += "/"
 		}
-		fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>", name, name)
+
+		link := filepath.Join(r.URL.Path, name)
+		fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>", link, name)
 	}
 
 	fmt.Fprintf(w, "</ul><hr></body></html>")
@@ -106,21 +110,41 @@ func (h *WebHandler) sendError(w http.ResponseWriter, code int) {
 	http.Error(w, http.StatusText(code), code)
 }
 
-func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	matchedPrefix := ""
-	var location LocationConfig
-	found := false
-
-	for prefix, loc := range h.Config.Locations {
-		if strings.HasPrefix(r.URL.Path, prefix) {
-			if len(prefix) > len(matchedPrefix) {
-				matchedPrefix = prefix
-				location = loc
-				found = true
-			}
-		}
+func (h *WebHandler) handleUpload(w http.ResponseWriter, r *http.Request, loc LocationConfig) {
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		h.sendError(w, http.StatusBadRequest)
+		return
 	}
 
+	file, handler, err := r.FormFile("file")
+	if err != nil {
+		h.sendError(w, http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	dstPath := filepath.Join(loc.UploadDir, handler.Filename)
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		log.Printf("Ошибка создания файла: %v", err)
+		h.sendError(w, http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		h.sendError(w, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	fmt.Fprintf(w, "File uploaded successfully: %s", handler.Filename)
+}
+
+func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	location, matchedPrefix, found := h.findLocation(r.URL.Path)
 	if !found {
 		h.sendError(w, http.StatusNotFound)
 		return
@@ -136,14 +160,19 @@ func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Method == "POST" && location.UploadDir != "" {
+		h.handleUpload(w, r, location)
+		return
+	}
+
 	if location.CGIExtension != "" && strings.HasSuffix(r.URL.Path, location.CGIExtension) {
 		h.handleCGI(w, r, location)
 		return
 	}
 
-	trimmedPath := strings.TrimPrefix(r.URL.Path, matchedPrefix)
-	trimmedPath = strings.TrimPrefix(trimmedPath, "/")
-	fullPath := filepath.Join(location.Root, trimmedPath)
+	relPath := strings.TrimPrefix(r.URL.Path, matchedPrefix)
+	relPath = strings.TrimLeft(relPath, "/")
+	fullPath := filepath.Join(location.Root, relPath)
 
 	stat, err := os.Stat(fullPath)
 	if err != nil {
